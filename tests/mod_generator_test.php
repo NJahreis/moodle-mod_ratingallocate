@@ -54,7 +54,7 @@ class mod_generator_test extends \advanced_testcase {
         ), 'id');
         $this->assertEquals(1, count($records));
         $this->assertTrue(array_key_exists($mod->id, $records));
-        $expectedvaluesdb = array(
+        $expected_values_db = array(
                 'id' => $mod->id,
                 'course' => $course->id,
                 'name' => 'Rating Allocation',
@@ -71,7 +71,11 @@ class mod_generator_test extends \advanced_testcase {
                 'notificationsend' => '0',
                 'algorithmstarttime' => null,
                 'algorithmstatus' => '0',
-                'runalgorithmbycron' => '1'
+                'runalgorithmbycron' => '1',
+                'enablecustommessage' => '0',
+                'emailsubject' => null,
+                'emailcontent' => null,
+                'emailcontenthtml' => null
         );
 
         $this->assertEquals(json_decode(json_encode($expectedvaluesdb, false)), reset($records));

@@ -28,8 +28,52 @@ require_once(__DIR__ . '/../locallib.php');
  */
 class mod_ratingallocate_notification_test extends \advanced_testcase {
 
-    const CHOICE1 = 'Choice 1';
-    const CHOICE2 = 'Choice 2';
+    /**
+     * Tests of publishing the allocation sends messages to all users with ratings
+     */
+    public function test_allocation_notification_send() {
+        $course = $this->getDataGenerator()->create_course();
+        $ratingallocate = mod_ratingallocate_generator::get_closed_ratingallocate_for_teacher($this, null, $course);
+
+        // Count the number of allocations.
+        $allocations = $ratingallocate->get_allocations();
+        $allocationcount = count($allocations);
+
+        // Create additional user to test if the user does not recieve a mail.
+        $teststudent = mod_ratingallocate_generator::create_user_and_enrol($this, $course);
+
+        $this->preventResetByRollback();
+        $messagessink = $this->redirectMessages();
+        $emailsink = $this->redirectEmails();
+
+        // Create notification task.
+        $task = new \mod_ratingallocate\task\send_distribution_notification();
+
+        // Add custom data.
+        $task->set_component('mod_ratingallocate');
+        $task->set_custom_data(array (
+            'ratingallocateid' => $ratingallocate->ratingallocate->id
+        ));
+
+        $this->setAdminUser();
+        $task->execute();
+
+        // Every rating should result in one sent mail and message.
+        $messages = $messagessink->get_messages();
+        $this->assertEquals($allocationcount, count($messages));
+        $emails = $emailsink->get_messages();
+        $this->assertEquals($allocationcount, count($emails));
+
+        // Check if every student with an allocation recieved a message and mail.
+        foreach ($allocations as $allocation) {
+            $this->assertArrayHasKey($messages, $allocation->userid);
+            $this->assertArrayHasKey($emails, $allocation->userid);
+        }
+
+        // Check if no mail was sent to the test user without a rating.
+        $this->assert_no_message_for_user($messages, $teststudent->id);
+        $this->assert_no_message_for_user($emails, $teststudent->id);
+    }
 
     /**
      * Tests if publishing the allocation send messages with the right content to the right users.
@@ -42,50 +86,7 @@ class mod_ratingallocate_notification_test extends \advanced_testcase {
         for ($i = 1; $i <= 4; $i++) {
             $students[$i] = \mod_ratingallocate_generator::create_user_and_enrol($this, $course);
         }
-        $choices = array(
-                array(
-                        'title' => self::CHOICE1,
-                        'maxsize' => '1',
-                        'active' => '1',
-                ),
-                array(
-                        'title' => self::CHOICE2,
-                        'maxsize' => '1',
-                        'active' => '1',
-                )
-        );
-        $ratings = array(
-                $students[1]->id => array(
-                        array(
-                                'choice' => self::CHOICE1,
-                                'rating' => 1
-                        ),
-                        array(
-                                'choice' => self::CHOICE2,
-                                'rating' => 0
-                        )
-                ),
-                $students[2]->id => array(
-                        array(
-                                'choice' => self::CHOICE1,
-                                'rating' => 0
-                        ),
-                        array(
-                                'choice' => self::CHOICE2,
-                                'rating' => 1
-                        )
-                ),
-                $students[3]->id => array(
-                        array(
-                                'choice' => self::CHOICE1,
-                                'rating' => 0
-                        ),
-                        array(
-                                'choice' => self::CHOICE2,
-                                'rating' => 0
-                        )
-                )
-        );
+        [$choices, $ratings] = $this->generate_choices_and_ratings($students);
 
         $ratingallocate = \mod_ratingallocate_generator::get_closed_ratingallocate_for_teacher($this, $choices,
                 $course, $ratings);
@@ -93,9 +94,9 @@ class mod_ratingallocate_notification_test extends \advanced_testcase {
         $this->assertArrayHasKey($students[1]->id, $allocations);
         $this->assertArrayHasKey($students[2]->id, $allocations);
         $this->assertCount(2, $allocations);
-        $choices = $ratingallocate->get_choices();
-        $this->assertEquals(self::CHOICE1, $choices[$allocations[$students[1]->id]->choiceid]->title);
-        $this->assertEquals(self::CHOICE2, $choices[$allocations[$students[2]->id]->choiceid]->title);
+        $ratingchoices = $ratingallocate->get_choices();
+        $this->assertEquals($choices[0]['title'], $ratingchoices[$allocations[$students[1]->id]->choiceid]->title);
+        $this->assertEquals($choices[1]['title'], $ratingchoices[$allocations[$students[2]->id]->choiceid]->title);
 
         $this->preventResetByRollback();
         $messagesink = $this->redirectMessages();
@@ -114,10 +115,102 @@ class mod_ratingallocate_notification_test extends \advanced_testcase {
 
         $messages = $messagesink->get_messages();
         $this->assertEquals(3, count($messages));
-        $this->assert_message_contains($messages, $students[1]->id, self::CHOICE1);
-        $this->assert_message_contains($messages, $students[2]->id, self::CHOICE2);
+        $this->assert_message_contains($messages, $students[1]->id, $choices[0]['title']);
+        $this->assert_message_contains($messages, $students[2]->id, $choices[1]['title']);
         $this->assert_message_contains($messages, $students[3]->id, 'could not');
         $this->assert_no_message_for_user($messages, $students[4]->id);
+    }
+
+    /**
+     * Tests if publishing the allocation sends messages with the right content to the right users with custom messages.
+    */
+     public function test_allocation_customnotification() {
+        global $DB;
+        $course = $this->getDataGenerator()->create_course();
+        $courselink = new moodle_url('/course/view.php', array('id' => $course->id));
+        $students = array();
+        for ($i = 1; $i <= 4; $i++) {
+            $students[$i] = mod_ratingallocate_generator::create_user_and_enrol($this, $course);
+        }
+
+        [$choices, $ratings] = $this->generate_choices_and_ratings($students);
+
+        $ratingallocate = mod_ratingallocate_generator::get_closed_ratingallocate_for_teacher($this, $choices,
+            $course, $ratings);
+
+        $record = $DB->get_records('ratingallocate', array('course' => $course->id))[0];
+        $coursemoduleid = get_all_instances_in_course('ratingallocate', $course)[0]->coursemodule;
+        $ratingallocatelink = new moodle_url('/mod/ratingallocate/view.php', array('id' => $coursemoduleid));
+
+        $allocations = $ratingallocate->get_allocations();
+        $this->assertArrayHasKey($students[1]->id, $allocations);
+        $this->assertArrayHasKey($students[2]->id, $allocations);
+        $this->assertCount(2, $allocations);
+        $ratingchoices = $ratingallocate->get_choices();
+        $this->assertEquals($choices[0]['title'], $ratingchoices[$allocations[$students[1]->id]->choiceid]->title);
+        $this->assertEquals($choices[1]['title'], $ratingchoices[$allocations[$students[2]->id]->choiceid]->title);
+
+        // Set custom message settings for the ratingallocate instance.
+        $DB->set_field('ratingallocate', 'enablecustommessage', 1, array('id' => $record['id']));
+        $testsubject = 'This ##firstname## is ##lastname## a ##choice## test ##choiceexplanation## string ##activityname## ' .
+            'for ##link## the ##coursename## variable ##courselink## substitution';
+        $testcontent = 'This ##firstname## is ##lastname## a ##choice## test ##choiceexplanation## string ##activityname## ' .
+            'for ##link## the ##coursename## variable ##courselink## substitution';
+        $testcontenthtml = 'This ##firstname## is ##lastname## a ##choice## test ##choiceexplanation## string ##activityname## ' .
+            'for ##link-html## the ##coursename## variable ##courselink-html## substitution';
+        $DB->set_field('ratingallocate', 'emailsubject', $testsubject, array('id' => $record['id']));
+        $DB->set_field('ratingallocate', 'emailcontent', $testcontent, array('id' => $record['id']));
+        $DB->set_field('ratingallocate', 'emailcontenthtml', $testcontenthtml, array('id' => $record['id']));
+
+        $messages = $this->redirectMessages();
+        $emails = $this->redirectEmails();
+
+        // Create a notification task.
+        $task = new mod_ratingallocate\task\send_distribution_notification();
+
+        // Add custom data.
+        $task->set_component('mod_ratingallocate');
+        $task->set_custom_data(array('ratingallocateid' => $ratingallocate->ratingallocate->id));
+
+        $this->preventResetByRollback();
+        unset_config('noemailever');
+
+        $this->setAdminUser();
+        $task->execute();
+
+        // Check if the correct number of messages and mails was send.
+        $this->assertEquals(3, count($this->$messages));
+        $this->assertEquals(3, count($this->$emails));
+        // Check if student[4] has no mail.
+        $this->assert_no_message_for_user($messages, $students[4]->id);
+
+        // Test if all custom fiels are correctly found in the moodle message:
+        // Also tests if the correct key is replaced by the correct string.
+        // First test the internal generated messages:
+        foreach (array_slice($students, 1, 3) as $student) {
+            // 1) ##firstname##.
+            $this->assert_message_contains($this->$messages, $student->id, 'This ' . $student->firstname . ' is');
+            // 2) ##lastname##.
+            $this->assert_message_contains($this->$messages, $student->id, 'is '. $student->lastname . ' a');
+            // 3) ##choice## OR 'You could not be assigned to any choice.' in case of student 3.
+            // 4) ##choiceexplanation## Empty for student 3.
+            if ($student->id < 3) {
+                $this->assert_message_contains($this->$messages, $student->id, 'a ' . $choices[$student->id]->title) . ' test';
+                $this->assert_message_contains($this->$messages, $student->id, 'test ' . $choices[$student->id]->explanation) . ' string';
+            }
+            else {
+                $this->assert_message_contains($this->$messages, $student->id, 'a You could not be assigned to any choice. test');
+                $this->assert_message_contains($this->$messages, $student->id, 'test ' . '' . ' string');
+            }
+            // 5) ##activityname##.
+            $this->assert_message_contains($this->$messages, $student->id, 'string ' . $record->name . ' for');
+            // 6) ##link##.
+            $this->assert_message_contains($this->$messages, $student->id, 'for ' . $ratingallocatelink->out() . ' the');
+            // 7) ##coursename##.
+            $this->assert_message_contains($this->$messages, $student->id, 'the ' . $course->shortname . ' variable');
+            // 8) ##courselink##.
+            $this->assert_message_contains($this->$messages, $student->id, 'variable ' . $courselink->out() . ' substitution');
+        }
     }
 
     /**
@@ -141,7 +234,6 @@ class mod_ratingallocate_notification_test extends \advanced_testcase {
      * Asserts that there is no message for a certain user.
      * @param $messages \stdClass[] received messages
      * @param $userid int id of the user
-     * @param $needle string search string
      */
     private function assert_no_message_for_user($messages, $userid) {
         $messageexists = false;
@@ -152,4 +244,62 @@ class mod_ratingallocate_notification_test extends \advanced_testcase {
         }
         $this->assertFalse($messageexists, 'There is a message for userid ' . $userid . '.');
     }
-}
+
+    /**
+     * Generate choices and ratings for students for notification tests
+     * @param $students array Array of students
+     * @return array Array containing the choices and the students ratings
+     */
+    private function generate_choices_and_ratings($students) {
+        $choices = array(
+            array(
+                'title' => 'Choice 1',
+                'explanation' => 'This is Choice 1',
+                'maxsize' => '1',
+                'active' => '1',
+            ),
+            array(
+                'title' => 'Choice 2',
+                'explanation' => 'This is Choice 2',
+                'maxsize' => '1',
+                'active' => '1',
+            )
+        );
+        $ratings = array(
+            $students[1]->id => array(
+                array(
+                    'choice' => $choices[0]['title'],
+                    'rating' => 1
+                ),
+                array(
+                    'choice' => $choices[1]['title'],
+                    'rating' => 0
+                )
+            ),
+            $students[2]->id => array(
+                array(
+                    'choice' => $choices[0]['title'],
+                    'rating' => 0
+                ),
+                array(
+                    'choice' => $choices[1]['title'],
+                    'rating' => 1
+                )
+            ),
+            $students[3]->id => array(
+                array(
+                    'choice' => $choices[0]['title'],
+                    'rating' => 0
+                ),
+                array(
+                    'choice' => $choices[1]['title'],
+                    'rating' => 0
+                )
+            )
+        );
+
+        return array (
+            $choices,
+            $ratings
+        );
+    }
