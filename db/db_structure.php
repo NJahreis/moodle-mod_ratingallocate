@@ -45,6 +45,10 @@ class ratingallocate {
     const ALGORITHMSTARTTIME = 'algorithmstarttime';
     const RUNALGORITHMBYCRON = 'runalgorithmbycron';
     const ALGORITHMSTATUS = 'algorithmstatus';
+    const CUSTOMMESSAGE = 'enablecustommessage';
+    const EMAILSUBJECT = 'emailsubject';
+    const EMAILCONTENT = 'emailcontent';
+    const EMAILCONTENTHTML = 'emailcontenthtml';
 }
 
 class ratingallocate_choices {

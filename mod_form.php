@@ -137,6 +137,38 @@ class mod_ratingallocate_mod_form extends moodleform_mod {
             $mform->addElement('static', self::STRATEGY_OPTIONS_PLACEHOLDER . '[' . $strategy . ']', '', '');
         }
 
+        // Settings for custom message then publishing allocation results.
+        $elementname = 'custommessage';
+        $mform->addElement('header', $elementname, get_string($elementname, self::MOD_NAME));
+        $elementname = 'custommessagehelp';
+        $mform->addElement('static', $elementname, get_string($elementname, self::MOD_NAME));
+        $elementname = 'enablecustommessage';
+        $mform->addElement('advcheckbox', $elementname, get_string($elementname, self::MOD_NAME), null, null, array(0, 1));
+
+        // Setting for the mail subject.
+        $elementname = 'emailsubject';
+        $mform->addElement('text', $elementname, get_string($elementname, self::MOD_NAME));
+        $mform->addHelpButton($elementname, $elementname, self::MOD_NAME);
+        $mform->setType($elementname, PARAM_TEXT);
+        $mform->setDefault($elementname, get_string('emailsubject_default', self::MOD_NAME));
+        $mform->disabledIf($elementname, 'enablecustommessage');
+
+        // Setting for the mail body.
+        $elementname = 'emailcontent';
+        $mform->addElement('textarea', $elementname, get_string($elementname, self::MOD_NAME));
+        $mform->addHelpButton($elementname, $elementname, self::MOD_NAME);
+        $mform->setType($elementname, PARAM_TEXT);
+        $mform->setDefault($elementname, get_string('emailcontent_default', self::MOD_NAME));
+        $mform->disabledIf($elementname, 'enablecustommessage');
+
+        // Setting for the mail body using html.
+        $elementname = 'emailcontenthtml';
+        $mform->addElement('textarea', $elementname, get_string($elementname, self::MOD_NAME));
+        $mform->addHelpButton($elementname, $elementname, self::MOD_NAME);
+        $mform->setType($elementname, PARAM_RAW);
+        $mform->setDefault($elementname, get_string('emailcontenthtml_default', self::MOD_NAME));
+        $mform->disabledIf($elementname, 'enablecustommessage');
+
         // Add standard elements, common to all modules.
         $this->standard_coursemodule_elements();
 

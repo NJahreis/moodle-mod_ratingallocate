@@ -378,12 +378,50 @@ $string['strategy_tickyes_setting_mintickyes'] = 'Minimum number of choices to a
 $string['strategy_tickyes_error_mintickyes'] = 'You have to tick at least {$a} boxes.';
 $string['strategy_tickyes_explain_mintickyes'] = 'You have to tick a minimum of {$a} boxes.';
 
-// As message provider, for the notification after allocation.
+// Custom message
+$string['custommessage'] = 'Custom publishing message';
+$string['enablecustommessage'] = 'Use custom message';
+$string['custommessagehelp'] = 'Placeholder text with a great explanation';
+$emailplaceholdersnohtml = '<p>' . 'You can use the following placeholders:'
+    . '<br>' . 'First name of recipient: ##firstname##'
+    . '<br>' . 'Last name of recipient: ##lastname##'
+    . '<br>' . 'Assigned choice: ##choice##'
+    . ' - '  . 'Replaced by "You could not be assigned to any choice." if applicable.'
+    . '<br>' . 'Assigned choice explanation: ##choiceexplanation##'
+    . ' - '  . 'Empty if no choice was possible.'
+    . '<br>' . 'Name of this activity: ##activityname##'
+    . '<br>' . 'Link to fair choice activity: ##link##'
+    . '<br>' . 'Short name of this course: ##coursename##'
+    . '<br>' . 'Link to the course: ##courselink##'
+    . '</p>';
+$emailplaceholdershtml = '<p>' . 'You can use the following placeholders:'
+    . '<br>' . 'First name of recipient: ##firstname##'
+    . '<br>' . 'Last name of recipient: ##lastname##'
+    . '<br>' . 'Assigned choice: ##choice##'
+    . ' - '  . 'Replaced by "You could not be assigned to any choice." if applicable.'
+    . '<br>' . 'Assigned choice explanation: ##choiceexplanation##'
+    . ' - '  . 'Empty if no choice was possible.'
+    . '<br>' . 'Name of this activity: ##activityname##'
+    . '<br>' . 'Link to fair choice activity: ##link-html##'
+    . '<br>' . 'Short name of this course: ##coursename##'
+    . '<br>' . 'Link to the course: ##courselink-html##'
+    . '</p>';
+$string['emailsubject'] = 'Subject template';
+$string['emailsubject_help'] = 'Set the template for the subject of the email.' . $emailplaceholdersnohtml;
+$string['emailsubject_default'] = 'Allocation published for ##activityname##';
+$string['emailcontent'] = 'Content plain text template';
+$string['emailcontent_help'] = 'Set the template for the content of the email (plain text, alternatively you can use HTML template for HTML email below)' . $emailplaceholdersnohtml;
+$string['emailcontent_default'] = 'Concerning the "##activityname##", you have been assigned to the choice "##choice## (##choiceexplanation##)".';
+$string['emailcontenthtml'] = 'Content of the plain text template';
+$string['emailcontenthtml_help'] = 'Set the html template for the content of the email (HTML email, will be used instead of plaintext field if not empty!' . $emailplaceholdersnohtml;
+$string['emailcontenthtml_default'] = '<p>Hello</p><p>Concerning the "##activityname##", you have been assigned to the choice "##choice## (##choiceexplanation##)". </p>';
+$string['no_allocation_notification_message'] = 'You could not be assigned to any choice.';
+
+// As message provider, for the notification after allocation
 $string['messageprovider:notifyalloc'] = 'Notification of option allocation';
-$string['allocation_notification_message_subject'] = 'Allocation published for {$a}';
-$string['allocation_notification_message'] =
-        'Concerning the "{$a->ratingallocate}", you have been assigned to the choice "{$a->choice} ({$a->explanation})".';
-$string['no_allocation_notification_message'] = 'Concerning the "{$a->ratingallocate}", you could not be assigned to any choice.';
+// $string['allocation_notification_message_subject'] = 'Allocation published for {$a}';
+// $string['allocation_notification_message'] = 'Concerning the "{$a->ratingallocate}", you have been assigned to the choice "{$a->choice} ({$a->explanation})".';
+// $string['no_allocation_notification_message'] = 'Concerning the "{$a->ratingallocate}", you could not be assigned to any choice.';
 $string['messageprovider:allocation'] = 'Notification about published allocation';
 
 // Logging.

@@ -119,6 +119,10 @@ define('ACTION_ALLOCATION_TO_GROUPING', 'allocation_to_gropuping');
  * 0 algorithm has not been running;
  * 1 algorithm running;
  * 2 algorithm finished;
+ * @property int $enablecustommessage
+ * @property string $emailsubject
+ * @property string $emailcontent
+ * @property string $emailcontenthtml
  * @property string $setting
  */
 class ratingallocate_db_wrapper {
@@ -1528,22 +1532,37 @@ class ratingallocate {
                 cron_setup_user($userto);
             }
 
-            $notificationsubject = format_string($this->course->shortname, true) . ': ' .
-                    get_string('allocation_notification_message_subject', 'ratingallocate',
-                            $this->ratingallocate->name);
-
-            if (array_key_exists($userid, $allocations) && $allocobj = $allocations[$userid]) {
-                // Get the assigned choice_id.
-                $allocchoiceid = $allocobj->choiceid;
-
-                $notificationtext = get_string('allocation_notification_message', 'ratingallocate', array(
-                        'ratingallocate' => $this->ratingallocate->name,
-                        'choice' => $choices[$allocchoiceid]->title,
-                        'explanation' => format_text($choices[$allocchoiceid]->explanation)));
+            // Prepare $email array with either custom or default templates:
+            if ( !($this->ratingallocate->enablecustommessage) ) {
+                // Use default templates.
+                $email = array(
+                    'emailsubject' => get_string('emailsubject_default', RATINGALLOCATE_MOD_NAME),
+                    'emailcontent' => get_string('emailcontent_default', RATINGALLOCATE_MOD_NAME),
+                    'emailcontenthtml' => get_string('emailcontenthtml_default', RATINGALLOCATE_MOD_NAME));
             } else {
-                $notificationtext = get_string('no_allocation_notification_message', 'ratingallocate', array(
-                        'ratingallocate' => $this->ratingallocate->name));
+                 // Use custom templates
+                $email = array(
+                    'emailsubject' => $this->ratingallocate->emailsubject,
+                    'emailcontent' => $this->ratingallocate->emailcontent,
+                    'emailcontenthtml' => $this->ratingallocate->emailcontenthtml);
             }
+
+            // Get the assigned choice_id.
+            if (array_key_exists($userid, $allocations) && $allocobj = $allocations[$userid]) {
+                $allocchoiceid = $allocobj->choiceid;
+                $choice = array(
+                    'title' => $choices[$allocchoiceid]->title,
+                    'description' => format_text($choices[$allocchoiceid]->explanation, FORMAT_PLAIN));
+            } else {
+                $choice = array(
+                    'title' => get_string('no_allocation_notification_message', RATINGALLOCATE_MOD_NAME),
+                    'description' => '');
+            }
+            $userdata = array (
+                'id' => $userto->id,
+                'firstname' => $userto->firstname,
+                'lastname' => $userto->lastname);
+            $email = $this->replace_placeholders($email, $userdata, $choice);
 
             // Prepare the message.
             $eventdata = new \core\message\message();
@@ -1552,12 +1571,12 @@ class ratingallocate {
             $eventdata->name = 'allocation';
             $eventdata->notification = 1;
 
-            $eventdata->userfrom = core_user::get_noreply_user();
-            $eventdata->userto = $userid;
-            $eventdata->subject = $notificationsubject;
-            $eventdata->fullmessage = $notificationtext;
+            $eventdata->userfrom          = core_user::get_noreply_user();
+            $eventdata->userto            = $userid;
+            $eventdata->subject           = $email['emailsubject'];
+            $eventdata->fullmessage       = $email['emailcontent'];
             $eventdata->fullmessageformat = FORMAT_PLAIN;
-            $eventdata->fullmessagehtml = '';
+            $eventdata->fullmessagehtml   = $email['emailcontenthtml'];
 
             $eventdata->smallmessage = '';
             $eventdata->contexturl = new moodle_url('/mod/ratingallocate/view.php',
@@ -1577,6 +1596,68 @@ class ratingallocate {
         $this->ratingallocate = new ratingallocate_db_wrapper($this->origdbrecord);
 
         $this->db->update_record(this_db\ratingallocate::TABLE, $this->origdbrecord);
+    }
+
+    /**
+     * Replaces certain placeholders within the mail template.
+     * @param string[] $strings of mail templates (subject, content, contenthtml).
+     * @param array $userdata array containing userid, firstname, lastname
+     * @param string[] $choice array containing title and description of the choice.
+     * @return string[] array of mail text.
+     * @throws \dml_exception
+     * @throws \moodle_exception
+     */
+    private function replace_placeholders($strings, $userdata, $choice) {
+        global $CFG;
+
+        $patterns = array();
+        $replacements = array();
+
+        // Replaces firstname of the user.
+        $patterns[] = '##firstname##';
+        $replacements[] = $userdata['firstname'];
+
+        // Replaces lastname of the user.
+        $patterns[] = '##lastname##';
+        $replacements[] = $userdata['lastname'];
+
+        // Replaces choice.
+        $patterns[] = '##choice##';
+        $replacements[] = $choice['title'];
+
+        // Replaces choice.
+        $patterns[] = '##choiceexplanation##';
+        $replacements[] = $choice['description'];
+
+        // Replace the activity name.
+        $patterns[] = '##activityname##';
+        $replacements[] = $this->ratingallocate->name;
+
+        // Replace link to rattingallocate instance.
+        $ratingallocatelink = new \moodle_url('/mod/ratingallocate/view.php', array('id' => $this->coursemodule->id));
+        $url = $ratingallocatelink->out();
+        $patterns[] = '##link##';
+        $replacements[] = $url;
+
+        // Replace html link to interaction page.
+        $patterns[] = '##link-html##';
+        $replacements[] = \html_writer::link($url, $url);
+
+        // Replace the course name.
+        $patterns[] = '##coursename##';
+        $replacements[] = format_string($this->course->shortname, true);
+
+        // Replace html link to the course.
+        $courselink = new \moodle_url('/course/view.php', array('id' => $this->course->id));
+        $url = $courselink->out();
+        $patterns[] = '##courselink##';
+        $replacements[] = $url;
+
+        // Replace html link to the course.
+        $patterns[] = '##courselink-html##';
+        $replacements[] = \html_writer::link($url, $url);;
+
+        return str_ireplace($patterns, $replacements, $strings);
     }
 
     /**

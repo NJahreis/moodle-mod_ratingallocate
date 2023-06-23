@@ -218,5 +218,44 @@ function xmldb_ratingallocate_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2023050900, 'ratingallocate');
     }
 
+    if ($oldversion < 2023062000) {
+
+        // Define field custommessage to be added to ratingallocate.
+        $table = new xmldb_table('ratingallocate');
+        $field = new xmldb_field('custommessage', XMLDB_TYPE_INTEGER, '1', null, null, null, '0', 'algorithmstatus');
+
+        // Conditionally launch add field custommessage.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field emailsubject to be added to ratingallocate.
+        $field = new xmldb_field('emailsubject', XMLDB_TYPE_TEXT, null, null, null, null, null, 'custommessage');
+
+        // Conditionally launch add field emailsubject.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field emailcontent to be added to ratingallocate.
+        $field = new xmldb_field('emailcontent', XMLDB_TYPE_TEXT, null, null, null, null, null, 'emailsubject');
+
+        // Conditionally launch add field emailcontent.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field emailcontenthtml to be added to ratingallocate.
+        $field = new xmldb_field('emailcontenthtml', XMLDB_TYPE_TEXT, null, null, null, null, null, 'emailcontent');
+
+        // Conditionally launch add field emailcontenthtml.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Ratingallocate savepoint reached.
+        upgrade_mod_savepoint(true, 2023062000, 'ratingallocate');
+    }
+
     return true;
 }
